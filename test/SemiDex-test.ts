@@ -8,14 +8,7 @@ const { expect } = chai;
 
 import SemiDexArtifact from "../artifacts/SemiDex.json";
 import { SemiDex } from "../typechain/SemiDex";
-import { BigNumber, bigNumberify } from "ethers/utils";
-
-type NewPair = {
-  pairId: BigNumber;
-  tokenA: string;
-  tokenB: string;
-  rateAtoB: BigNumber;
-}; // TODO can a contract event type be retrieved directly from typechain output?
+import { bigNumberify } from "ethers/utils";
 
 describe("SemiDex", () => {
   const { provider } = waffle;
@@ -34,47 +27,34 @@ describe("SemiDex", () => {
     });
 
     it("Should be able to add a trading pair", async function() {
-      // watch for 'NewPair' event
-      const newPairEventPromise = new Promise<NewPair>((resolve, reject) => {
-        semiDex.once("NewPair", function(pairId, tokenA, tokenB, rateAtoB) {
-          resolve({ pairId, tokenA, tokenB, rateAtoB });
-        });
-
-        setTimeout(() => {
-          reject(new Error("newPairEventPromise timeout"));
-        }, 60000);
-      });
-
       const testPair = {
         tokenA: "ETH",
         tokenB: "USDC",
         rateAtoB: bigNumberify(185)
       };
 
+      const expectedPairId = bigNumberify(initialPairsCount);
+
       // add the new exchange pair
-      await semiDex.addPair(
+      const addPairPromise = semiDex.addPair(
         testPair.tokenA,
         testPair.tokenB,
         testPair.rateAtoB
       );
 
-      // retrieve NewPair event from result
-      const newPairEvent = await newPairEventPromise;
-
-      if (newPairEvent === undefined) {
-        expect.fail(newPairEvent, { event: "NewPair" }, "No new pair event");
-        return;
-      }
-
-      // expect NewPair event info to be correct
-      const { pairId, tokenA, tokenB, rateAtoB } = newPairEvent;
-      expect(testPair.tokenA).to.equal(testPair.tokenA, tokenA);
-      expect(testPair.tokenB).to.equal(tokenB);
-      expect(testPair.rateAtoB).to.equal(rateAtoB);
+      // add pair, and expect NewPair event
+      await expect(addPairPromise)
+        .to.emit(semiDex, "NewPair")
+        .withArgs(
+          expectedPairId,
+          testPair.tokenA,
+          testPair.tokenB,
+          testPair.rateAtoB
+        );
 
       // expect pair to be stored in contract pairs array
       const pairsCountAfter = await semiDex.pairsCount();
-      const pair = await semiDex.pairs(pairId);
+      const pair = await semiDex.pairs(expectedPairId);
 
       expect(pairsCountAfter).to.equal(initialPairsCount + 1);
 
@@ -120,12 +100,11 @@ describe("SemiDex", () => {
 
       const updatedPair: any = await semiDex.pairs(pairId);
 
-
       // expect pair details to be correctly updated
       const expectedUpdatedPairDetails = { ...testPair, ...updatedDetails };
       Object.entries(expectedUpdatedPairDetails).forEach(([key, value]) => {
-        expect(updatedPair[key]).to.equal(value)
-      })
+        expect(updatedPair[key]).to.equal(value);
+      });
     });
   });
 });
