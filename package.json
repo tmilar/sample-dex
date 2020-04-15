@@ -4,7 +4,9 @@
   "description": "A sample semi-decentralized exchange, built with Buidler.",
   "main": "index.js",
   "scripts": {
-    "test": "cross-env TS_NODE_TRANSPILE_ONLY=1 npx buidler test"
+    "test": "cross-env TS_NODE_TRANSPILE_ONLY=1 npx buidler test",
+    "build": "npx buidler typechain",
+    "postinstall": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -25,11 +27,17 @@
     "@types/chai": "4.2.11",
     "@types/mocha": "7.0.2",
     "@types/node": "13.11.1",
+    "buidler-typechain": "0.0.5",
     "chai": "4.2.0",
     "cross-env": "7.0.2",
     "ethereum-waffle": "2.4.1",
     "ethers": "4.0.46",
+    "ts-generator": "0.0.8",
     "ts-node": "8.8.2",
+    "typechain": "1.0.5",
+    "typechain-target-ethers": "1.0.4",
+    "typechain-target-truffle": "1.0.2",
+    "typechain-target-web3-v1": "1.0.4",
     "typescript": "3.8.3"
   }
 }
