@@ -33,4 +33,10 @@ contract SemiDex is Ownable {
 
     emit NewPair(pairId, tokenA, tokenB, rateAtoB);
   }
+
+  function updatePairDetails(uint pairId, uint128 balanceA, uint128 balanceB, uint256 rateAtoB) external onlyOwner {
+    pairs[pairId].balanceA = balanceA;
+    pairs[pairId].balanceB = balanceB;
+    pairs[pairId].rateAtoB = rateAtoB;
+  }
 }
