@@ -23,13 +23,18 @@ describe("SemiDex", () => {
 
   context("Admin", function() {
     it("Should be able to add a trading pair", async function() {
+      console.time("await deployContract(wallet, SemiDexArtifact)")
       const semiDex = (await deployContract(
         wallet,
         SemiDexArtifact
       )) as SemiDex;
+      console.timeEnd("await deployContract(wallet, SemiDexArtifact)")
 
       // check initial pairs count
+      console.time("const pairsCountBefore = await semiDex.pairsCount();")
       const pairsCountBefore = await semiDex.pairsCount();
+      console.timeEnd("const pairsCountBefore = await semiDex.pairsCount();")
+
       expect(pairsCountBefore).to.be.equal(0);
 
       // watch for 'NewPair' event
@@ -55,14 +60,19 @@ describe("SemiDex", () => {
       };
 
       // add the new exchange pair
+
+      console.time("await semiDex.addPair(testPair.tokenA, testPair.tokenB, testPair.rateAtoB);")
       await semiDex.addPair(
         testPair.tokenA,
         testPair.tokenB,
         testPair.rateAtoB
       );
+      console.timeEnd("await semiDex.addPair(testPair.tokenA, testPair.tokenB, testPair.rateAtoB);")
 
       // retrieve NewPair event from result
+      console.time("const newPairEvent = await newPairEventPromise;")
       const newPairEvent = await newPairEventPromise;
+      console.timeEnd("const newPairEvent = await newPairEventPromise;")
 
       if (newPairEvent === undefined) {
         expect.fail(newPairEvent, { event: "NewPair" }, "No new pair event");
@@ -76,8 +86,13 @@ describe("SemiDex", () => {
       expect(testPair.rateAtoB).to.equal(rateAtoB);
 
       // expect pair to be stored in contract pairs array
+      console.time("const pairsCountAfter = await semiDex.pairsCount();")
       const pairsCountAfter = await semiDex.pairsCount();
+      console.timeEnd("const pairsCountAfter = await semiDex.pairsCount();")
+
+      console.time("const pair = await semiDex.pairs(pairId);")
       const pair = await semiDex.pairs(pairId);
+      console.timeEnd("const pair = await semiDex.pairs(pairId);")
 
       expect(pairsCountAfter).to.equal(1);
 
