@@ -20,13 +20,16 @@
     "@nomiclabs/buidler": "1.2.0"
   },
   "devDependencies": {
-    "@nomiclabs/buidler-truffle5": "1.2.0",
-    "@nomiclabs/buidler-web3": "1.2.0",
+    "@nomiclabs/buidler-ethers": "1.2.0",
+    "@nomiclabs/buidler-waffle": "1.2.0",
+    "@types/chai": "4.2.11",
     "@types/mocha": "7.0.2",
     "@types/node": "13.11.1",
+    "chai": "4.2.0",
     "cross-env": "7.0.2",
+    "ethereum-waffle": "2.4.1",
+    "ethers": "4.0.46",
     "ts-node": "8.8.2",
-    "typescript": "3.8.3",
-    "web3": "1.2.6"
+    "typescript": "3.8.3"
   }
 }

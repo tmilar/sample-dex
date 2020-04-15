@@ -1,10 +1,11 @@
 import {BuidlerConfig, usePlugin} from "@nomiclabs/buidler/config";
 
-usePlugin("@nomiclabs/buidler-truffle5");
+usePlugin("@nomiclabs/buidler-waffle");
 
 const config: BuidlerConfig = {
   paths: {
-    sources: "./contracts"
+    sources: "./contracts",
+    artifacts: "./artifacts"
   }
 };
 

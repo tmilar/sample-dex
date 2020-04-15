@@ -1,47 +1,79 @@
-import { artifacts, contract } from "@nomiclabs/buidler";
-import { assert } from "chai";
+import { waffle } from "@nomiclabs/buidler";
+import chai from "chai";
+import { solidity, deployContract } from "ethereum-waffle";
 
-const BN = require("bn.js");
+chai.use(solidity);
 
-const SemiDex = artifacts.require("SemiDex");
+const { expect } = chai;
 
-contract("SemiDex", accounts => {
+import SemiDexArtifact from "../artifacts/SemiDex.json";
+import { BigNumber, bigNumberify } from "ethers/utils";
+
+describe("SemiDex", () => {
+  const { provider } = waffle;
+  const [wallet] = provider.getWallets();
+
   context("Admin", function() {
     it("Should be able to add a trading pair", async function() {
-      const semiDex = await SemiDex.new();
+      const semiDex = await deployContract(wallet, SemiDexArtifact);
+
+      // check initial pairs count
       const pairsCountBefore = await semiDex.pairsCount();
-      assert.equal(pairsCountBefore, 0);
+      expect(pairsCountBefore).to.be.equal(0);
 
-      // add trading pair
-      const testPair = { tokenA: "ETH", tokenB: "USDC", rateAtoB: new BN(185) };
-      const result = await semiDex.addPair(testPair.tokenA, testPair.tokenB, testPair.rateAtoB);
+      // watch for 'NewPair' event
+      const newPairEventPromise = new Promise((resolve, reject) => {
+        semiDex.once("NewPair", function(
+          pairId,
+          tokenA,
+          tokenB,
+          rateAtoB
+        ) {
+          resolve({ pairId, tokenA, tokenB, rateAtoB });
+        });
 
-      // retrieve NewPair event from result
-      const newPairEvent = result.logs.find(
-        (log: any) => log.event === "NewPair"
+        setTimeout(() => {
+          reject(new Error("newPairEventPromise timeout"));
+        }, 60000);
+      });
+
+      const testPair = {
+        tokenA: "ETH",
+        tokenB: "USDC",
+        rateAtoB: bigNumberify(185)
+      };
+
+      // add the new exchange pair
+      await semiDex.addPair(
+        testPair.tokenA,
+        testPair.tokenB,
+        testPair.rateAtoB
       );
 
+      // retrieve NewPair event from result
+      const newPairEvent = await newPairEventPromise;
+
       if (newPairEvent === undefined) {
-        assert.fail(newPairEvent, { event: "NewPair" }, "No new pair event");
+        expect.fail(newPairEvent, { event: "NewPair" }, "No new pair event");
         return;
       }
 
       // expect NewPair event info to be correct
-      const { pairId, tokenA, tokenB, rateAtoB } = newPairEvent.args;
-      assert.equal(testPair.tokenA, tokenA);
-      assert.equal(testPair.tokenB, tokenB);
-      assert.equal(testPair.rateAtoB.toString(), rateAtoB.toString());
+      const { pairId, tokenA, tokenB, rateAtoB } = newPairEvent as any;
+      expect(testPair.tokenA).to.equal(testPair.tokenA, tokenA);
+      expect(testPair.tokenB).to.equal(tokenB);
+      expect(testPair.rateAtoB).to.equal(rateAtoB);
 
       // expect pair to be stored in contract pairs array
       const pairsCountAfter = await semiDex.pairsCount();
-      const pair = await semiDex.pairs(pairId.toNumber());
+      const pair = await semiDex.pairs(pairId);
 
-      assert.equal(pairsCountAfter, 1);
+      expect(pairsCountAfter).to.equal(1);
 
       // expect stored pair info to be correct
-      assert.equal(testPair.tokenA, pair.tokenA);
-      assert.equal(testPair.tokenB, pair.tokenB);
-      assert.equal(new BN(testPair.rateAtoB).toString(), pair.rateAtoB.toString());
+      expect(testPair.tokenA).to.equal(pair.tokenA);
+      expect(testPair.tokenB).to.equal(pair.tokenB);
+      expect(testPair.rateAtoB).to.equal(pair.rateAtoB);
     });
   });
 });
