@@ -8,13 +8,21 @@ const SemiDex = artifacts.require("SemiDex");
 contract("SemiDex", accounts => {
   context("Admin", function() {
     it("Should be able to add a trading pair", async function() {
+      console.time("const semiDex = await SemiDex.new();");
       const semiDex = await SemiDex.new();
+      console.timeEnd("const semiDex = await SemiDex.new();");
+      console.time("const pairsCountBefore = await semiDex.pairsCount();")
       const pairsCountBefore = await semiDex.pairsCount();
+      console.timeEnd("const pairsCountBefore = await semiDex.pairsCount();")
+
       assert.equal(pairsCountBefore, 0);
 
       // add trading pair
       const testPair = { tokenA: "ETH", tokenB: "USDC", rateAtoB: new BN(185) };
+
+      console.time("const result = await semiDex.addPair(testPair.tokenA, testPair.tokenB, testPair.rateAtoB);")
       const result = await semiDex.addPair(testPair.tokenA, testPair.tokenB, testPair.rateAtoB);
+      console.timeEnd("const result = await semiDex.addPair(testPair.tokenA, testPair.tokenB, testPair.rateAtoB);")
 
       // retrieve NewPair event from result
       const newPairEvent = result.logs.find(
@@ -33,7 +41,9 @@ contract("SemiDex", accounts => {
       assert.equal(testPair.rateAtoB.toString(), rateAtoB.toString());
 
       // expect pair to be stored in contract pairs array
+      console.time("const pairsCountAfter = await semiDex.pairsCount();")
       const pairsCountAfter = await semiDex.pairsCount();
+      console.timeEnd("const pairsCountAfter = await semiDex.pairsCount();")
       const pair = await semiDex.pairs(pairId.toNumber());
 
       assert.equal(pairsCountAfter, 1);
