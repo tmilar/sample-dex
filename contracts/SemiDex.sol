@@ -39,4 +39,29 @@ contract SemiDex is Ownable {
     pairs[pairId].balanceB = balanceB;
     pairs[pairId].rateAtoB = rateAtoB;
   }
+
+  /*
+   * Remove a pair by "nullyfing" all of its values.
+   * We still keep the position in the pairs array, to prevent invalid operations by rearranging the whole array.
+   */
+  function removePair(uint pairId) external onlyOwner {
+    require(pairId < pairsCount, "Pair id not exists in array");
+    Pair storage pair = pairs[pairId];
+    pair.tokenA = "";
+    pair.tokenB = "";
+    pair.rateAtoB = 0;
+    pair.balanceA = 0;
+    pair.balanceB = 0;
+  }
+
+  function isPairRemoved(uint pairId) view external returns (bool) {
+    require(pairId < pairsCount, "Pair id not exists in array");
+    Pair memory pair = pairs[pairId];
+
+    return keccak256(abi.encodePacked(pair.tokenA)) == keccak256(abi.encodePacked("")) &&
+    keccak256(abi.encodePacked(pair.tokenB)) == keccak256(abi.encodePacked("")) &&
+    pair.rateAtoB == 0 &&
+    pair.balanceA == 0 &&
+    pair.balanceB == 0;
+  }
 }

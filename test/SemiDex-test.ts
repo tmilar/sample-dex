@@ -8,7 +8,15 @@ const { expect } = chai;
 
 import SemiDexArtifact from "../artifacts/SemiDex.json";
 import { SemiDex } from "../typechain/SemiDex";
-import { bigNumberify } from "ethers/utils";
+import { BigNumber, bigNumberify } from "ethers/utils";
+
+type Pair = {
+  tokenA: string;
+  tokenB: string;
+  rateAtoB: BigNumber;
+  balanceA: BigNumber;
+  balanceB: BigNumber;
+};
 
 describe("SemiDex", () => {
   const { provider } = waffle;
@@ -21,12 +29,13 @@ describe("SemiDex", () => {
     beforeEach(async () => {
       semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
 
+      await semiDex.addPair("A", "B", 10);
       // check initial pairs count
       initialPairsCount = await semiDex.pairsCount();
-      expect(initialPairsCount).to.be.equal(0);
+      expect(initialPairsCount).to.be.equal(1);
     });
 
-    it("Should be able to add a trading pair", async function() {
+    it("Add a trading pair", async function() {
       const testPair = {
         tokenA: "ETH",
         tokenB: "USDC",
@@ -64,7 +73,7 @@ describe("SemiDex", () => {
       expect(testPair.rateAtoB).to.equal(pair.rateAtoB);
     });
 
-    it("Should be able to update a trading pair details", async function() {
+    it("Update an existing trading pair details", async function() {
       const testPair = {
         tokenA: "ETH",
         tokenB: "USDC",
@@ -78,7 +87,7 @@ describe("SemiDex", () => {
         testPair.rateAtoB
       );
 
-      const pairId = 0;
+      const pairId = (await semiDex.pairsCount()) - 1;
       const pair = await semiDex.pairs(pairId);
 
       // check pair exists
@@ -105,6 +114,34 @@ describe("SemiDex", () => {
       Object.entries(expectedUpdatedPairDetails).forEach(([key, value]) => {
         expect(updatedPair[key]).to.equal(value);
       });
+    });
+
+    it("Remove an existing trading pair", async function() {
+      function _isPairRemoved(pair: Pair) {
+        const { tokenA, tokenB, rateAtoB, balanceA, balanceB } = pair;
+        return (
+          tokenA === "" &&
+          tokenB === "" &&
+          rateAtoB.toNumber() === 0 &&
+          balanceA.toNumber() === 0 &&
+          balanceB.toNumber() === 0
+        );
+      }
+
+      const existingPairId = 0;
+      const existingPair = await semiDex.pairs(existingPairId);
+      // ensure pair already exists
+      expect(existingPair).to.exist;
+
+      expect(_isPairRemoved(existingPair)).to.be.false;
+      expect(await semiDex.isPairRemoved(existingPairId)).to.be.false;
+      // remove existing pair
+      await semiDex.removePair(existingPairId);
+      const removedPair = await semiDex.pairs(existingPairId);
+
+      // expect pair to be removed
+      expect(_isPairRemoved(removedPair)).to.be.true;
+      expect(await semiDex.isPairRemoved(existingPairId)).to.be.true;
     });
   });
 
@@ -168,5 +205,17 @@ describe("SemiDex", () => {
         "Not allowed, only owner"
       );
     });
+
+    it("Can't remove an existing pair", async () => {
+      // ensure that 1 pair is available
+      const existingPairId = 0;
+      await semiDex.addPair("A", "B", bigNumberify(1));
+      const pairsCount = await semiDexAsUser.pairsCount();
+      expect(pairsCount).to.be.equal(1);
+
+      // expect removePair transaction to revert
+      const removePairPromise = semiDexAsUser.removePair(existingPairId);
+      await expect(removePairPromise).to.be.revertedWith("Not allowed, only owner")
+    })
   });
 });
