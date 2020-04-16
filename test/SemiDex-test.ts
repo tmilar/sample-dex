@@ -114,8 +114,27 @@ describe("SemiDex", () => {
 
     beforeEach(async () => {
       semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
-      await semiDex.addPair("A", "B", bigNumberify(1));
       semiDexAsUser = semiDex.connect(userWallet);
+    });
+
+    it("List all existing pairs", async () => {
+      // ensure that more than 1 pair is available
+      await semiDex.addPair("A", "B", bigNumberify(1));
+      await semiDex.addPair("C", "D", bigNumberify(5));
+      const pairsCount = await semiDexAsUser.pairsCount();
+      expect(pairsCount).to.be.equal(2);
+
+      // retrieve all pairs
+      const pairs = await Promise.all(
+        [...Array(pairsCount)].map(async (_, pairId) => ({
+          pairId,
+          ...await semiDexAsUser.pairs(pairId)
+        }))
+      );
+
+      expect(pairs.length).to.equal(pairsCount);
+      expect(pairs[0]).to.include({tokenA: "A", tokenB: "B"})
+      expect(pairs[1]).to.include({tokenA: "C", tokenB: "D"})
     });
 
     it("Can't add a new pair", async () => {
@@ -124,15 +143,19 @@ describe("SemiDex", () => {
         "B",
         bigNumberify(100)
       );
+
       await expect(addPairTransactionPromise).to.be.revertedWith(
         "Not allowed, only owner"
       );
     });
 
     it("Can't modify an existing pair", async () => {
+      // get existing pair
       const existingPairId = 0;
+      await semiDex.addPair("A", "B", bigNumberify(1));
       const pair = await semiDexAsUser.pairs(existingPairId);
       expect(pair).to.exist;
+
       const updatePairPromise = semiDexAsUser.updatePairDetails(
         existingPairId,
         bigNumberify(0),
@@ -140,6 +163,7 @@ describe("SemiDex", () => {
         bigNumberify(0)
       );
 
+      // expect update transaction to revert
       await expect(updatePairPromise).to.be.revertedWith(
         "Not allowed, only owner"
       );
