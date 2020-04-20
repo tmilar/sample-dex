@@ -33,18 +33,13 @@ describe("SemiDex", () => {
   const { provider } = waffle;
   const [adminWallet, userWallet] = provider.getWallets();
 
+  let semiDex: SemiDex;
+
+  beforeEach(async () => {
+    semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
+  });
+
   context("Admin", function() {
-    let semiDex: SemiDex;
-    let initialPairsCount: number;
-
-    beforeEach(async () => {
-      semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
-
-      await semiDex.addPair(tokensMap.MKR.address, tokensMap.HT.address, 10);
-      // check initial pairs count
-      initialPairsCount = await semiDex.pairsCount();
-      expect(initialPairsCount).to.be.equal(1);
-    });
 
     it("Add a trading pair", async function() {
       const testPair = {
@@ -53,7 +48,7 @@ describe("SemiDex", () => {
         rateAtoB: bigNumberify(185)
       };
 
-      const expectedPairId = bigNumberify(initialPairsCount);
+      const expectedPairId = 0;
 
       // add the new exchange pair
       const addPairPromise = semiDex.addPair(
@@ -76,7 +71,7 @@ describe("SemiDex", () => {
       const pairsCountAfter = await semiDex.pairsCount();
       const pair = await semiDex.pairs(expectedPairId);
 
-      expect(pairsCountAfter).to.equal(initialPairsCount + 1);
+      expect(pairsCountAfter).to.equal(1);
 
       // expect stored pair info to be correct
       expect(testPair.tokenA).to.equal(pair.tokenA);
@@ -91,7 +86,7 @@ describe("SemiDex", () => {
         rateAtoB: bigNumberify(185)
       };
 
-      // add the new exchange pair
+      // add a sample exchange pair for updating
       await semiDex.addPair(
         testPair.tokenA,
         testPair.tokenB,
@@ -101,7 +96,7 @@ describe("SemiDex", () => {
       const pairId = (await semiDex.pairsCount()) - 1;
       const pair = await semiDex.pairs(pairId);
 
-      // check pair exists
+      // ensure pair exists
       expect(pair).to.not.be.undefined;
 
       const updatedDetails = {
@@ -128,6 +123,9 @@ describe("SemiDex", () => {
     });
 
     it("Remove an existing trading pair", async function() {
+      // add a sample pair for removal
+      await semiDex.addPair(tokensMap.BNB.address, tokensMap.USDC.address, 1);
+
       const existingPairId = 0;
       const existingPair = await semiDex.pairs(existingPairId);
       // ensure a pair exists
@@ -158,11 +156,9 @@ describe("SemiDex", () => {
   });
 
   context("User", function() {
-    let semiDex: SemiDex;
     let semiDexAsUser: SemiDex;
 
     beforeEach(async () => {
-      semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
       semiDexAsUser = semiDex.connect(userWallet);
     });
 
