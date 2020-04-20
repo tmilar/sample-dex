@@ -1,0 +1,32 @@
+[
+  {
+    "address": "0xB8c77482e45F1F44dE1745F52C74426C631bDD52",
+    "symbol": "BNB",
+    "decimal": 18,
+    "type": "default"
+  },
+  {
+    "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "symbol": "USDC",
+    "decimal": 6,
+    "type": "default"
+  },
+  {
+    "address": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+    "symbol": "LINK (Chainlink)",
+    "decimal": 18,
+    "type": "default"
+  },
+  {
+    "address": "0x6f259637dcD74C767781E37Bc6133cd6A68aa161",
+    "symbol": "HT",
+    "decimal": 18,
+    "type": "default"
+  },
+  {
+    "address": "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",
+    "symbol": "MKR",
+    "decimal": 18,
+    "type": "default"
+  }
+]

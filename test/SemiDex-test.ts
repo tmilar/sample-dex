@@ -1,14 +1,15 @@
 import { waffle } from "@nomiclabs/buidler";
 import chai from "chai";
-import { solidity, deployContract } from "ethereum-waffle";
+import { deployContract, solidity } from "ethereum-waffle";
+import { BigNumber, bigNumberify } from "ethers/utils";
+
+import { SemiDex } from "../typechain/SemiDex";
+import SemiDexArtifact from "../artifacts/SemiDex.json";
+
+import { getToken } from "./fixtures";
 
 chai.use(solidity);
-
 const { expect } = chai;
-
-import SemiDexArtifact from "../artifacts/SemiDex.json";
-import { SemiDex } from "../typechain/SemiDex";
-import { BigNumber, bigNumberify } from "ethers/utils";
 
 type Pair = {
   tokenA: string;
@@ -17,6 +18,16 @@ type Pair = {
   balanceA: BigNumber;
   balanceB: BigNumber;
 };
+
+const tokensMap = {
+  USDC: getToken("USDC"),
+  BNB: getToken("BNB"),
+  LINK: getToken("LINK (Chainlink)"),
+  HT: getToken("HT"),
+  MKR: getToken("MKR")
+};
+
+const NULL_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 describe("SemiDex", () => {
   const { provider } = waffle;
@@ -29,7 +40,7 @@ describe("SemiDex", () => {
     beforeEach(async () => {
       semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
 
-      await semiDex.addPair("A", "B", 10);
+      await semiDex.addPair(tokensMap.MKR.address, tokensMap.HT.address, 10);
       // check initial pairs count
       initialPairsCount = await semiDex.pairsCount();
       expect(initialPairsCount).to.be.equal(1);
@@ -37,8 +48,8 @@ describe("SemiDex", () => {
 
     it("Add a trading pair", async function() {
       const testPair = {
-        tokenA: "ETH",
-        tokenB: "USDC",
+        tokenA: tokensMap.MKR.address,
+        tokenB: tokensMap.HT.address,
         rateAtoB: bigNumberify(185)
       };
 
@@ -75,8 +86,8 @@ describe("SemiDex", () => {
 
     it("Update an existing trading pair details", async function() {
       const testPair = {
-        tokenA: "ETH",
-        tokenB: "USDC",
+        tokenA: tokensMap.MKR.address,
+        tokenB: tokensMap.HT.address,
         rateAtoB: bigNumberify(185)
       };
 
@@ -117,21 +128,22 @@ describe("SemiDex", () => {
     });
 
     it("Remove an existing trading pair", async function() {
+      const existingPairId = 0;
+      const existingPair = await semiDex.pairs(existingPairId);
+      // ensure a pair exists
+      expect(existingPair).to.exist;
+
+      // helper function to check pair removal
       function _isPairRemoved(pair: Pair) {
         const { tokenA, tokenB, rateAtoB, balanceA, balanceB } = pair;
         return (
-          tokenA === "" &&
-          tokenB === "" &&
+          tokenA === NULL_ADDRESS &&
+          tokenB === NULL_ADDRESS &&
           rateAtoB.toNumber() === 0 &&
           balanceA.toNumber() === 0 &&
           balanceB.toNumber() === 0
         );
       }
-
-      const existingPairId = 0;
-      const existingPair = await semiDex.pairs(existingPairId);
-      // ensure pair already exists
-      expect(existingPair).to.exist;
 
       expect(_isPairRemoved(existingPair)).to.be.false;
       expect(await semiDex.isPairRemoved(existingPairId)).to.be.false;
@@ -155,29 +167,42 @@ describe("SemiDex", () => {
     });
 
     it("List all existing pairs", async () => {
+      const testPairs = [
+        {
+          tokenA: tokensMap.USDC.address,
+          tokenB: tokensMap.BNB.address
+        },
+        {
+          tokenA: tokensMap.HT.address,
+          tokenB: tokensMap.LINK.address
+        }
+      ];
+
+      for (let { tokenA, tokenB } of testPairs) {
+        await semiDex.addPair(tokenA, tokenB, bigNumberify(1));
+      }
+
       // ensure that more than 1 pair is available
-      await semiDex.addPair("A", "B", bigNumberify(1));
-      await semiDex.addPair("C", "D", bigNumberify(5));
       const pairsCount = await semiDexAsUser.pairsCount();
-      expect(pairsCount).to.be.equal(2);
+      expect(pairsCount).to.be.equal(testPairs.length);
 
       // retrieve all pairs
       const pairs = await Promise.all(
         [...Array(pairsCount)].map(async (_, pairId) => ({
           pairId,
-          ...await semiDexAsUser.pairs(pairId)
+          ...(await semiDexAsUser.pairs(pairId))
         }))
       );
 
       expect(pairs.length).to.equal(pairsCount);
-      expect(pairs[0]).to.include({tokenA: "A", tokenB: "B"})
-      expect(pairs[1]).to.include({tokenA: "C", tokenB: "D"})
+      expect(pairs[0]).to.include(testPairs[0]);
+      expect(pairs[1]).to.include(testPairs[1]);
     });
 
     it("Can't add a new pair", async () => {
       const addPairTransactionPromise = semiDexAsUser.addPair(
-        "A",
-        "B",
+        tokensMap.USDC.address,
+        tokensMap.BNB.address,
         bigNumberify(100)
       );
 
@@ -187,11 +212,15 @@ describe("SemiDex", () => {
     });
 
     it("Can't modify an existing pair", async () => {
-      // get existing pair
+      await semiDex.addPair(
+        tokensMap.USDC.address,
+        tokensMap.BNB.address,
+        bigNumberify(100)
+      );
       const existingPairId = 0;
-      await semiDex.addPair("A", "B", bigNumberify(1));
-      const pair = await semiDexAsUser.pairs(existingPairId);
-      expect(pair).to.exist;
+      // ensure that 1 pair exists
+      const pairsCount = await semiDexAsUser.pairsCount();
+      expect(pairsCount).to.be.equal(1);
 
       const updatePairPromise = semiDexAsUser.updatePairDetails(
         existingPairId,
@@ -207,15 +236,21 @@ describe("SemiDex", () => {
     });
 
     it("Can't remove an existing pair", async () => {
-      // ensure that 1 pair is available
+      await semiDex.addPair(
+        tokensMap.USDC.address,
+        tokensMap.BNB.address,
+        bigNumberify(100)
+      );
       const existingPairId = 0;
-      await semiDex.addPair("A", "B", bigNumberify(1));
+      // ensure that 1 pair exists
       const pairsCount = await semiDexAsUser.pairsCount();
       expect(pairsCount).to.be.equal(1);
 
       // expect removePair transaction to revert
       const removePairPromise = semiDexAsUser.removePair(existingPairId);
-      await expect(removePairPromise).to.be.revertedWith("Not allowed, only owner")
-    })
+      await expect(removePairPromise).to.be.revertedWith(
+        "Not allowed, only owner"
+      );
+    });
   });
 });
