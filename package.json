@@ -33,6 +33,7 @@
     "ethereum-waffle": "2.4.1",
     "ethers": "4.0.46",
     "mocha": "7.1.1",
+    "openzeppelin-solidity": "2.5.0",
     "ts-generator": "0.0.8",
     "ts-node": "8.8.2",
     "typechain": "1.0.5",

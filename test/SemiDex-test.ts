@@ -6,6 +6,9 @@ import { BigNumber, bigNumberify } from "ethers/utils";
 import { SemiDex } from "../typechain/SemiDex";
 import SemiDexArtifact from "../artifacts/SemiDex.json";
 
+import { ERC20DetailedMock } from "../typechain/ERC20DetailedMock";
+import ERC20DetailedMockArtifact from "../artifacts/ERC20DetailedMock.json";
+
 import { getToken } from "./fixtures";
 
 chai.use(solidity);
@@ -31,20 +34,29 @@ const NULL_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 describe("SemiDex", () => {
   const { provider } = waffle;
-  const [adminWallet, userWallet] = provider.getWallets();
+  const [adminWallet, userWallet, erc20Owner] = provider.getWallets();
 
   let semiDex: SemiDex;
 
   beforeEach(async () => {
+    // deploy SemiDex instance
     semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
+
+    // deploy ERC20 token contract mocks
+    for (const [name, token] of Object.entries(tokensMap)) {
+      token.contract = (await deployContract(
+        erc20Owner,
+        ERC20DetailedMockArtifact,
+        [name, token.symbol, token.decimal]
+      )) as ERC20DetailedMock;
+    }
   });
 
   context("Admin", function() {
-
     it("Add a trading pair", async function() {
       const testPair = {
-        tokenA: tokensMap.MKR.address,
-        tokenB: tokensMap.HT.address,
+        tokenA: tokensMap.MKR.contract.address,
+        tokenB: tokensMap.HT.contract.address,
         rateAtoB: bigNumberify(185)
       };
 
@@ -81,8 +93,8 @@ describe("SemiDex", () => {
 
     it("Update an existing trading pair details", async function() {
       const testPair = {
-        tokenA: tokensMap.MKR.address,
-        tokenB: tokensMap.HT.address,
+        tokenA: tokensMap.MKR.contract.address,
+        tokenB: tokensMap.HT.contract.address,
         rateAtoB: bigNumberify(185)
       };
 
@@ -124,7 +136,11 @@ describe("SemiDex", () => {
 
     it("Remove an existing trading pair", async function() {
       // add a sample pair for removal
-      await semiDex.addPair(tokensMap.BNB.address, tokensMap.USDC.address, 1);
+      await semiDex.addPair(
+        tokensMap.BNB.contract.address,
+        tokensMap.USDC.contract.address,
+        1
+      );
 
       const existingPairId = 0;
       const existingPair = await semiDex.pairs(existingPairId);
@@ -165,12 +181,12 @@ describe("SemiDex", () => {
     it("List all existing pairs", async () => {
       const testPairs = [
         {
-          tokenA: tokensMap.USDC.address,
-          tokenB: tokensMap.BNB.address
+          tokenA: tokensMap.USDC.contract.address,
+          tokenB: tokensMap.BNB.contract.address
         },
         {
-          tokenA: tokensMap.HT.address,
-          tokenB: tokensMap.LINK.address
+          tokenA: tokensMap.HT.contract.address,
+          tokenB: tokensMap.LINK.contract.address
         }
       ];
 
@@ -197,8 +213,8 @@ describe("SemiDex", () => {
 
     it("Can't add a new pair", async () => {
       const addPairTransactionPromise = semiDexAsUser.addPair(
-        tokensMap.USDC.address,
-        tokensMap.BNB.address,
+        tokensMap.USDC.contract.address,
+        tokensMap.BNB.contract.address,
         bigNumberify(100)
       );
 
@@ -209,8 +225,8 @@ describe("SemiDex", () => {
 
     it("Can't modify an existing pair", async () => {
       await semiDex.addPair(
-        tokensMap.USDC.address,
-        tokensMap.BNB.address,
+        tokensMap.USDC.contract.address,
+        tokensMap.BNB.contract.address,
         bigNumberify(100)
       );
       const existingPairId = 0;
@@ -233,8 +249,8 @@ describe("SemiDex", () => {
 
     it("Can't remove an existing pair", async () => {
       await semiDex.addPair(
-        tokensMap.USDC.address,
-        tokensMap.BNB.address,
+        tokensMap.USDC.contract.address,
+        tokensMap.BNB.contract.address,
         bigNumberify(100)
       );
       const existingPairId = 0;
