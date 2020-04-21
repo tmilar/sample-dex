@@ -1,6 +1,7 @@
 pragma solidity >=0.5.0 <0.6.0;
 
 import "@nomiclabs/buidler/console.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/ERC20Detailed.sol";
 
 import "./ownable.sol";
 import "./safemath.sol";
@@ -32,6 +33,33 @@ contract SemiDex is Ownable {
     console.log("New pairs count: %d", pairsCount);
 
     emit NewPair(pairId, tokenA, tokenB, rateAtoB);
+  }
+
+  function getPairDetails(uint pairId) view external returns (
+    address tokenA,
+    address tokenB,
+    uint256 rateAtoB,
+    uint128 balanceA,
+    uint128 balanceB,
+    string memory symbolA,
+    string memory symbolB,
+    uint8 decimalsA,
+    uint8 decimalsB
+  ){
+
+    tokenA = pairs[pairId].tokenA;
+    tokenB = pairs[pairId].tokenB;
+    rateAtoB = pairs[pairId].rateAtoB;
+    balanceA = pairs[pairId].balanceA;
+    balanceB = pairs[pairId].balanceB;
+
+    ERC20Detailed A = ERC20Detailed(tokenA);
+    ERC20Detailed B = ERC20Detailed(tokenB);
+
+    symbolA = A.symbol();
+    symbolB = B.symbol();
+    decimalsA = A.decimals();
+    decimalsB = B.decimals();
   }
 
   function updatePairDetails(uint pairId, uint128 balanceA, uint128 balanceB, uint256 rateAtoB) external onlyOwner {

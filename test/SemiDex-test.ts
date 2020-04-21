@@ -178,6 +178,26 @@ describe("SemiDex", () => {
       semiDexAsUser = semiDex.connect(userWallet);
     });
 
+    it("Get an existing pair details", async () => {
+      const testPair = {
+        tokenA: tokensMap.BNB.contract.address,
+        tokenB: tokensMap.USDC.contract.address,
+
+        symbolA: tokensMap.BNB.symbol,
+        symbolB: tokensMap.USDC.symbol,
+        decimalsA: tokensMap.BNB.decimal,
+        decimalsB: tokensMap.USDC.decimal
+      };
+
+      await semiDex.addPair(testPair.tokenA, testPair.tokenB, bigNumberify(1));
+      const existingPairId = 0;
+
+      const pairDetails = await semiDexAsUser.getPairDetails(existingPairId);
+      const { tokenA, tokenB, symbolA, symbolB, decimalsA, decimalsB } = pairDetails;
+      expect(pairDetails).to.exist;
+      expect({ tokenA, tokenB, symbolA, symbolB, decimalsA, decimalsB }).to.include(testPair);
+    });
+
     it("List all existing pairs", async () => {
       const testPairs = [
         {
