@@ -193,20 +193,45 @@ describe("SemiDex", () => {
       const existingPairId = 0;
 
       const pairDetails = await semiDexAsUser.getPairDetails(existingPairId);
-      const { tokenA, tokenB, symbolA, symbolB, decimalsA, decimalsB } = pairDetails;
+      const {
+        tokenA,
+        tokenB,
+        symbolA,
+        symbolB,
+        decimalsA,
+        decimalsB
+      } = pairDetails;
+
       expect(pairDetails).to.exist;
-      expect({ tokenA, tokenB, symbolA, symbolB, decimalsA, decimalsB }).to.include(testPair);
+      expect({
+        tokenA,
+        tokenB,
+        symbolA,
+        symbolB,
+        decimalsA,
+        decimalsB
+      }).to.include(testPair);
     });
 
     it("List all existing pairs", async () => {
       const testPairs = [
         {
           tokenA: tokensMap.USDC.contract.address,
-          tokenB: tokensMap.BNB.contract.address
+          tokenB: tokensMap.BNB.contract.address,
+
+          symbolA: tokensMap.USDC.symbol,
+          symbolB: tokensMap.BNB.symbol,
+          decimalsA: tokensMap.USDC.decimal,
+          decimalsB: tokensMap.BNB.decimal
         },
         {
           tokenA: tokensMap.HT.contract.address,
-          tokenB: tokensMap.LINK.contract.address
+          tokenB: tokensMap.LINK.contract.address,
+
+          symbolA: tokensMap.HT.symbol,
+          symbolB: tokensMap.LINK.symbol,
+          decimalsA: tokensMap.HT.decimal,
+          decimalsB: tokensMap.LINK.decimal
         }
       ];
 
@@ -222,7 +247,7 @@ describe("SemiDex", () => {
       const pairs = await Promise.all(
         [...Array(pairsCount)].map(async (_, pairId) => ({
           pairId,
-          ...(await semiDexAsUser.pairs(pairId))
+          ...(await semiDexAsUser.getPairDetails(pairId))
         }))
       );
 
