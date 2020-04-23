@@ -172,6 +172,50 @@ describe("SemiDex", () => {
       expect(updatedPair.rateAtoB).to.equal(updatedDetails.rateAtoB);
     });
 
+    it("Provide liquidity to an existing trading pair", async function() {
+      // add a sample pair to be updated
+      await semiDex.addPair(
+        testPair.tokenA.address,
+        testPair.tokenB.address,
+        testPair.rateAtoB,
+        testPair.poolTokenA,
+        testPair.poolTokenB
+      );
+
+      const pairId = 0;
+      const pair = await semiDex.getPairDetails(pairId);
+
+      // ensure pair exists
+      expect(pair).to.exist;
+
+      // get initial balances
+      const {
+        balanceA: initialBalanceA,
+        balanceB: initialBalanceB
+      } = await semiDex.getPairDetails(pairId);
+
+      // transfer currency to pair pools
+      const amount = bigNumberify(100);
+      await transferAndVerify(
+        testPair.tokenA,
+        testPair.poolTokenA,
+        amount,
+        adminWallet
+      );
+      await transferAndVerify(
+        testPair.tokenB,
+        testPair.poolTokenB,
+        amount,
+        adminWallet
+      );
+
+      // expect pair details to now include updated token balances
+      const { balanceA, balanceB } = await semiDex.getPairDetails(pairId);
+
+      expect(balanceA).to.be.equal(initialBalanceA.add(amount));
+      expect(balanceB).to.be.equal(initialBalanceB.add(amount));
+    });
+
     it("Remove an existing trading pair", async function() {
       // add a sample pair for removal
       await semiDex.addPair(
