@@ -22,6 +22,14 @@ type Pair = {
   poolTokenB: string;
 };
 
+type PairFixture = {
+  tokenA: ERC20DetailedMock;
+  tokenB: ERC20DetailedMock;
+  rateAtoB: BigNumber;
+  poolTokenA: string;
+  poolTokenB: string;
+};
+
 const tokensMap = {
   USDC: getToken("USDC"),
   BNB: getToken("BNB"),
@@ -44,7 +52,7 @@ describe("SemiDex", () => {
 
   let semiDex: SemiDex;
 
-  let testPair: Pair;
+  let testPair: PairFixture;
 
   beforeEach(async () => {
     // deploy SemiDex instance
@@ -61,8 +69,8 @@ describe("SemiDex", () => {
 
     // define fixture testPair object
     testPair = {
-      tokenA: tokensMap.USDC.contract.address,
-      tokenB: tokensMap.BNB.contract.address,
+      tokenA: tokensMap.USDC.contract as ERC20DetailedMock,
+      tokenB: tokensMap.BNB.contract as ERC20DetailedMock,
       rateAtoB: bigNumberify(185),
       poolTokenA: poolTokenWallet1.address,
       poolTokenB: poolTokenWallet2.address
@@ -75,8 +83,8 @@ describe("SemiDex", () => {
 
       // add the new exchange pair
       const addPairPromise = semiDex.addPair(
-        testPair.tokenA,
-        testPair.tokenB,
+        testPair.tokenA.address,
+        testPair.tokenB.address,
         testPair.rateAtoB,
         testPair.poolTokenA,
         testPair.poolTokenB
@@ -87,8 +95,8 @@ describe("SemiDex", () => {
         .to.emit(semiDex, "NewPair")
         .withArgs(
           expectedPairId,
-          testPair.tokenA,
-          testPair.tokenB,
+          testPair.tokenA.address,
+          testPair.tokenB.address,
           testPair.rateAtoB
         );
 
@@ -99,16 +107,16 @@ describe("SemiDex", () => {
       expect(pairsCountAfter).to.equal(1);
 
       // expect stored pair info to be correct
-      expect(testPair.tokenA).to.equal(pair.tokenA);
-      expect(testPair.tokenB).to.equal(pair.tokenB);
+      expect(testPair.tokenA.address).to.equal(pair.tokenA);
+      expect(testPair.tokenB.address).to.equal(pair.tokenB);
       expect(testPair.rateAtoB).to.equal(pair.rateAtoB);
     });
 
     it("Update an existing trading pair rateAtoB", async function() {
       // add a sample exchange pair for updating
       await semiDex.addPair(
-        testPair.tokenA,
-        testPair.tokenB,
+        testPair.tokenA.address,
+        testPair.tokenB.address,
         testPair.rateAtoB,
         testPair.poolTokenA,
         testPair.poolTokenB
@@ -130,10 +138,7 @@ describe("SemiDex", () => {
       const updatedPair: any = await semiDex.pairs(pairId);
 
       // expect pair details to be correctly updated
-      const expectedUpdatedPairDetails = { ...testPair, ...updatedDetails };
-      Object.entries(expectedUpdatedPairDetails).forEach(([key, value]) => {
-        expect(updatedPair[key]).to.equal(value);
-      });
+      expect(updatedPair.rateAtoB).to.equal(updatedDetails.rateAtoB);
     });
 
     it("Remove an existing trading pair", async function() {
@@ -194,8 +199,8 @@ describe("SemiDex", () => {
       };
 
       await semiDex.addPair(
-        testPair.tokenA,
-        testPair.tokenB,
+        testPair.tokenA.address,
+        testPair.tokenB.address,
         testPair.rateAtoB,
         testPair.poolTokenA,
         testPair.poolTokenB
