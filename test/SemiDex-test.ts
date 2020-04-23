@@ -2,6 +2,7 @@ import { waffle } from "@nomiclabs/buidler";
 import chai from "chai";
 import { deployContract, solidity } from "ethereum-waffle";
 import { BigNumber, bigNumberify } from "ethers/utils";
+import { Wallet } from "ethers";
 
 import { SemiDex } from "../typechain/SemiDex";
 import SemiDexArtifact from "../artifacts/SemiDex.json";
@@ -33,7 +34,6 @@ type PairFixture = {
 const tokensMap = {
   USDC: getToken("USDC"),
   BNB: getToken("BNB"),
-  LINK: getToken("LINK (Chainlink)"),
   HT: getToken("HT"),
   MKR: getToken("MKR")
 };
@@ -54,17 +54,48 @@ describe("SemiDex", () => {
 
   let testPair: PairFixture;
 
+  // helper function to transfer erc20 token currency, in tests
+  async function transferAndVerify(
+    erc20Token: ERC20DetailedMock,
+    to: string | Wallet,
+    amount: BigNumber,
+    signer?: Wallet
+  ) {
+    if (to instanceof Wallet) {
+      to = to.address;
+    }
+
+    const erc20TokenContract =
+      signer !== undefined ? erc20Token.connect(signer) : erc20Token;
+
+    await erc20TokenContract.transfer(to, amount);
+    expect(await erc20TokenContract.balanceOf(to)).to.be.equal(amount);
+  }
+
   beforeEach(async () => {
     // deploy SemiDex instance
     semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
 
-    // deploy ERC20 token contract mocks
+    // deploy ERC20 token contract mocks & initialize balances
     for (const [name, token] of Object.entries(tokensMap)) {
-      token.contract = (await deployContract(
+      const initialHolder = erc20Owner.address;
+      const initialSupply = bigNumberify(10000);
+
+      // deploy erc20 token instance
+      token.contract = await deployContract(
         erc20Owner,
         ERC20DetailedMockArtifact,
-        [name, token.symbol, token.decimal]
-      )) as ERC20DetailedMock;
+        [name, token.symbol, token.decimal, initialHolder, initialSupply]
+      );
+
+      // initialize admin & user balances
+      const initialAdminBalance = bigNumberify(1000);
+      const initialUserBalance = bigNumberify(500);
+      const erc20Token = token.contract as ERC20DetailedMock;
+
+      // transfer token balances to test accounts
+      await transferAndVerify(erc20Token, adminWallet, initialAdminBalance);
+      await transferAndVerify(erc20Token, userWallet, initialUserBalance);
     }
 
     // define fixture testPair object
@@ -234,12 +265,12 @@ describe("SemiDex", () => {
         },
         {
           tokenA: tokensMap.HT.contract.address,
-          tokenB: tokensMap.LINK.contract.address,
+          tokenB: tokensMap.MKR.contract.address,
 
           symbolA: tokensMap.HT.symbol,
-          symbolB: tokensMap.LINK.symbol,
+          symbolB: tokensMap.MKR.symbol,
           decimalsA: tokensMap.HT.decimal,
-          decimalsB: tokensMap.LINK.decimal
+          decimalsB: tokensMap.MKR.decimal
         }
       ];
 
