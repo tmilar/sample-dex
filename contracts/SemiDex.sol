@@ -15,8 +15,8 @@ contract SemiDex is Ownable {
 
     uint256 rateAtoB;
 
-    uint128 balanceA;
-    uint128 balanceB;
+    address poolTokenA;
+    address poolTokenB;
   }
 
   Pair[] public pairs;
@@ -25,8 +25,8 @@ contract SemiDex is Ownable {
   event NewPair (uint pairId, address tokenA, address tokenB, uint256 rateAtoB);
 
   // add a tokens exchange pair
-  function addPair(address tokenA, address tokenB, uint256 rateAtoB) external onlyOwner {
-    Pair memory pair = Pair(tokenA, tokenB, rateAtoB, 0, 0);
+  function addPair(address tokenA, address tokenB, uint256 rateAtoB, address poolTokenA, address poolTokenB) external onlyOwner {
+    Pair memory pair = Pair(tokenA, tokenB, rateAtoB, poolTokenA, poolTokenB);
     uint pairId = pairs.push(pair) - 1;
     pairsCount = pairsCount.add(1);
     console.log("Added pair: %s/%s at rate %d", tokenA, tokenB, rateAtoB);
@@ -39,8 +39,8 @@ contract SemiDex is Ownable {
     address tokenA,
     address tokenB,
     uint256 rateAtoB,
-    uint128 balanceA,
-    uint128 balanceB,
+    uint256 balanceA,
+    uint256 balanceB,
     string memory symbolA,
     string memory symbolB,
     uint8 decimalsA,
@@ -50,11 +50,12 @@ contract SemiDex is Ownable {
     tokenA = pairs[pairId].tokenA;
     tokenB = pairs[pairId].tokenB;
     rateAtoB = pairs[pairId].rateAtoB;
-    balanceA = pairs[pairId].balanceA;
-    balanceB = pairs[pairId].balanceB;
 
     ERC20Detailed A = ERC20Detailed(tokenA);
     ERC20Detailed B = ERC20Detailed(tokenB);
+
+    balanceA = A.balanceOf(pairs[pairId].poolTokenA);
+    balanceB = B.balanceOf(pairs[pairId].poolTokenB);
 
     symbolA = A.symbol();
     symbolB = B.symbol();
@@ -62,9 +63,7 @@ contract SemiDex is Ownable {
     decimalsB = B.decimals();
   }
 
-  function updatePairDetails(uint pairId, uint128 balanceA, uint128 balanceB, uint256 rateAtoB) external onlyOwner {
-    pairs[pairId].balanceA = balanceA;
-    pairs[pairId].balanceB = balanceB;
+  function updatePairRateAtoB(uint pairId, uint256 rateAtoB) external onlyOwner {
     pairs[pairId].rateAtoB = rateAtoB;
   }
 
@@ -78,8 +77,6 @@ contract SemiDex is Ownable {
     pair.tokenA = address(0);
     pair.tokenB = address(0);
     pair.rateAtoB = 0;
-    pair.balanceA = 0;
-    pair.balanceB = 0;
   }
 
   function isPairRemoved(uint pairId) view external returns (bool) {
@@ -88,8 +85,6 @@ contract SemiDex is Ownable {
 
     return pair.tokenA == address(0) &&
     pair.tokenB == address(0) &&
-    pair.rateAtoB == 0 &&
-    pair.balanceA == 0 &&
-    pair.balanceB == 0;
+    pair.rateAtoB == 0;
   }
 }

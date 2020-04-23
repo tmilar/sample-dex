@@ -18,8 +18,8 @@ type Pair = {
   tokenA: string;
   tokenB: string;
   rateAtoB: BigNumber;
-  balanceA: BigNumber;
-  balanceB: BigNumber;
+  poolTokenA: string;
+  poolTokenB: string;
 };
 
 const tokensMap = {
@@ -34,7 +34,13 @@ const NULL_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 describe("SemiDex", () => {
   const { provider } = waffle;
-  const [adminWallet, userWallet, erc20Owner] = provider.getWallets();
+  const [
+    adminWallet,
+    userWallet,
+    erc20Owner,
+    poolTokenWallet1,
+    poolTokenWallet2
+  ] = provider.getWallets();
 
   let semiDex: SemiDex;
 
@@ -55,9 +61,11 @@ describe("SemiDex", () => {
   context("Admin", function() {
     it("Add a trading pair", async function() {
       const testPair = {
-        tokenA: tokensMap.MKR.contract.address,
-        tokenB: tokensMap.HT.contract.address,
-        rateAtoB: bigNumberify(185)
+        tokenA: tokensMap.USDC.contract.address,
+        tokenB: tokensMap.BNB.contract.address,
+        rateAtoB: bigNumberify(185),
+        poolTokenA: poolTokenWallet1.address,
+        poolTokenB: poolTokenWallet2.address
       };
 
       const expectedPairId = 0;
@@ -66,7 +74,9 @@ describe("SemiDex", () => {
       const addPairPromise = semiDex.addPair(
         testPair.tokenA,
         testPair.tokenB,
-        testPair.rateAtoB
+        testPair.rateAtoB,
+        testPair.poolTokenA,
+        testPair.poolTokenB
       );
 
       // add pair, and expect NewPair event
@@ -91,18 +101,22 @@ describe("SemiDex", () => {
       expect(testPair.rateAtoB).to.equal(pair.rateAtoB);
     });
 
-    it("Update an existing trading pair details", async function() {
+    it("Update an existing trading pair rateAtoB ", async function() {
       const testPair = {
         tokenA: tokensMap.MKR.contract.address,
         tokenB: tokensMap.HT.contract.address,
-        rateAtoB: bigNumberify(185)
+        rateAtoB: bigNumberify(185),
+        poolTokenA: poolTokenWallet1.address,
+        poolTokenB: poolTokenWallet2.address
       };
 
       // add a sample exchange pair for updating
       await semiDex.addPair(
         testPair.tokenA,
         testPair.tokenB,
-        testPair.rateAtoB
+        testPair.rateAtoB,
+        testPair.poolTokenA,
+        testPair.poolTokenB
       );
 
       const pairId = (await semiDex.pairsCount()) - 1;
@@ -112,18 +126,11 @@ describe("SemiDex", () => {
       expect(pair).to.not.be.undefined;
 
       const updatedDetails = {
-        balanceA: bigNumberify(1000),
-        balanceB: bigNumberify(2000),
         rateAtoB: bigNumberify(200)
       };
 
       // run pair update
-      await semiDex.updatePairDetails(
-        pairId,
-        updatedDetails.balanceA,
-        updatedDetails.balanceB,
-        updatedDetails.rateAtoB
-      );
+      await semiDex.updatePairRateAtoB(pairId, updatedDetails.rateAtoB);
 
       const updatedPair: any = await semiDex.pairs(pairId);
 
@@ -139,7 +146,9 @@ describe("SemiDex", () => {
       await semiDex.addPair(
         tokensMap.BNB.contract.address,
         tokensMap.USDC.contract.address,
-        1
+        1,
+        poolTokenWallet1.address,
+        poolTokenWallet2.address
       );
 
       const existingPairId = 0;
@@ -149,13 +158,11 @@ describe("SemiDex", () => {
 
       // helper function to check pair removal
       function _isPairRemoved(pair: Pair) {
-        const { tokenA, tokenB, rateAtoB, balanceA, balanceB } = pair;
+        const { tokenA, tokenB, rateAtoB } = pair;
         return (
           tokenA === NULL_ADDRESS &&
           tokenB === NULL_ADDRESS &&
-          rateAtoB.toNumber() === 0 &&
-          balanceA.toNumber() === 0 &&
-          balanceB.toNumber() === 0
+          rateAtoB.toNumber() === 0
         );
       }
 
@@ -182,35 +189,44 @@ describe("SemiDex", () => {
       const testPair = {
         tokenA: tokensMap.BNB.contract.address,
         tokenB: tokensMap.USDC.contract.address,
+        rateAtoB: bigNumberify(185),
+        poolTokenA: poolTokenWallet1.address,
+        poolTokenB: poolTokenWallet2.address
+      };
 
+      const expectedPairDetails = {
+        tokenA: tokensMap.BNB.contract.address,
+        tokenB: tokensMap.USDC.contract.address,
         symbolA: tokensMap.BNB.symbol,
         symbolB: tokensMap.USDC.symbol,
         decimalsA: tokensMap.BNB.decimal,
-        decimalsB: tokensMap.USDC.decimal
+        decimalsB: tokensMap.USDC.decimal,
+        rateAtoB: testPair.rateAtoB,
+        balanceA: bigNumberify(0),
+        balanceB: bigNumberify(0)
       };
 
-      await semiDex.addPair(testPair.tokenA, testPair.tokenB, bigNumberify(1));
+      await semiDex.addPair(
+        testPair.tokenA,
+        testPair.tokenB,
+        testPair.rateAtoB,
+        testPair.poolTokenA,
+        testPair.poolTokenB
+      );
+
       const existingPairId = 0;
 
       const pairDetails = await semiDexAsUser.getPairDetails(existingPairId);
-      const {
-        tokenA,
-        tokenB,
-        symbolA,
-        symbolB,
-        decimalsA,
-        decimalsB
-      } = pairDetails;
 
       expect(pairDetails).to.exist;
-      expect({
-        tokenA,
-        tokenB,
-        symbolA,
-        symbolB,
-        decimalsA,
-        decimalsB
-      }).to.include(testPair);
+
+      // keep only named props from pairDetails response,
+      // remove redundant number-indexed props for easier test assertion
+      const curatedPairDetails = Object.entries(pairDetails)
+        .filter(([key]) => isNaN(Number(key)))
+        .reduce((obj, [k, v]) => ({ ...obj, [k]: v }), {});
+
+      expect(curatedPairDetails).to.deep.equal(expectedPairDetails);
     });
 
     it("List all existing pairs", async () => {
@@ -236,7 +252,13 @@ describe("SemiDex", () => {
       ];
 
       for (let { tokenA, tokenB } of testPairs) {
-        await semiDex.addPair(tokenA, tokenB, bigNumberify(1));
+        await semiDex.addPair(
+          tokenA,
+          tokenB,
+          bigNumberify(1),
+          poolTokenWallet1.address,
+          poolTokenWallet2.address
+        );
       }
 
       // ensure that more than 1 pair is available
@@ -260,7 +282,9 @@ describe("SemiDex", () => {
       const addPairTransactionPromise = semiDexAsUser.addPair(
         tokensMap.USDC.contract.address,
         tokensMap.BNB.contract.address,
-        bigNumberify(100)
+        bigNumberify(100),
+        NULL_ADDRESS,
+        NULL_ADDRESS
       );
 
       await expect(addPairTransactionPromise).to.be.revertedWith(
@@ -272,17 +296,17 @@ describe("SemiDex", () => {
       await semiDex.addPair(
         tokensMap.USDC.contract.address,
         tokensMap.BNB.contract.address,
-        bigNumberify(100)
+        bigNumberify(100),
+        NULL_ADDRESS,
+        NULL_ADDRESS
       );
       const existingPairId = 0;
       // ensure that 1 pair exists
       const pairsCount = await semiDexAsUser.pairsCount();
       expect(pairsCount).to.be.equal(1);
 
-      const updatePairPromise = semiDexAsUser.updatePairDetails(
+      const updatePairPromise = semiDexAsUser.updatePairRateAtoB(
         existingPairId,
-        bigNumberify(0),
-        bigNumberify(0),
         bigNumberify(0)
       );
 
@@ -296,7 +320,9 @@ describe("SemiDex", () => {
       await semiDex.addPair(
         tokensMap.USDC.contract.address,
         tokensMap.BNB.contract.address,
-        bigNumberify(100)
+        bigNumberify(100),
+        NULL_ADDRESS,
+        NULL_ADDRESS
       );
       const existingPairId = 0;
       // ensure that 1 pair exists
