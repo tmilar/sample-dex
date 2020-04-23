@@ -44,6 +44,8 @@ describe("SemiDex", () => {
 
   let semiDex: SemiDex;
 
+  let testPair: Pair;
+
   beforeEach(async () => {
     // deploy SemiDex instance
     semiDex = (await deployContract(adminWallet, SemiDexArtifact)) as SemiDex;
@@ -56,18 +58,19 @@ describe("SemiDex", () => {
         [name, token.symbol, token.decimal]
       )) as ERC20DetailedMock;
     }
+
+    // define fixture testPair object
+    testPair = {
+      tokenA: tokensMap.USDC.contract.address,
+      tokenB: tokensMap.BNB.contract.address,
+      rateAtoB: bigNumberify(185),
+      poolTokenA: poolTokenWallet1.address,
+      poolTokenB: poolTokenWallet2.address
+    };
   });
 
   context("Admin", function() {
     it("Add a trading pair", async function() {
-      const testPair = {
-        tokenA: tokensMap.USDC.contract.address,
-        tokenB: tokensMap.BNB.contract.address,
-        rateAtoB: bigNumberify(185),
-        poolTokenA: poolTokenWallet1.address,
-        poolTokenB: poolTokenWallet2.address
-      };
-
       const expectedPairId = 0;
 
       // add the new exchange pair
@@ -101,15 +104,7 @@ describe("SemiDex", () => {
       expect(testPair.rateAtoB).to.equal(pair.rateAtoB);
     });
 
-    it("Update an existing trading pair rateAtoB ", async function() {
-      const testPair = {
-        tokenA: tokensMap.MKR.contract.address,
-        tokenB: tokensMap.HT.contract.address,
-        rateAtoB: bigNumberify(185),
-        poolTokenA: poolTokenWallet1.address,
-        poolTokenB: poolTokenWallet2.address
-      };
-
+    it("Update an existing trading pair rateAtoB", async function() {
       // add a sample exchange pair for updating
       await semiDex.addPair(
         testPair.tokenA,
@@ -186,21 +181,13 @@ describe("SemiDex", () => {
     });
 
     it("Get an existing pair details", async () => {
-      const testPair = {
-        tokenA: tokensMap.BNB.contract.address,
-        tokenB: tokensMap.USDC.contract.address,
-        rateAtoB: bigNumberify(185),
-        poolTokenA: poolTokenWallet1.address,
-        poolTokenB: poolTokenWallet2.address
-      };
-
       const expectedPairDetails = {
-        tokenA: tokensMap.BNB.contract.address,
-        tokenB: tokensMap.USDC.contract.address,
-        symbolA: tokensMap.BNB.symbol,
-        symbolB: tokensMap.USDC.symbol,
-        decimalsA: tokensMap.BNB.decimal,
-        decimalsB: tokensMap.USDC.decimal,
+        tokenA: tokensMap.USDC.contract.address,
+        tokenB: tokensMap.BNB.contract.address,
+        symbolA: tokensMap.USDC.symbol,
+        symbolB: tokensMap.BNB.symbol,
+        decimalsA: tokensMap.USDC.decimal,
+        decimalsB: tokensMap.BNB.decimal,
         rateAtoB: testPair.rateAtoB,
         balanceA: bigNumberify(0),
         balanceB: bigNumberify(0)
