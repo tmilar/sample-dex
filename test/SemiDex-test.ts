@@ -39,7 +39,9 @@ const tokensMap = {
 };
 
 const NULL_ADDRESS = "0x0000000000000000000000000000000000000000";
-const UINT256_MAX = bigNumberify(2).pow(256).sub(1);
+const UINT256_MAX = bigNumberify(2)
+  .pow(256)
+  .sub(1);
 
 describe("SemiDex", () => {
   const { provider } = waffle;
@@ -99,7 +101,6 @@ describe("SemiDex", () => {
 
     // deploy ERC20 token contract mocks & initialize balances
     for (const [name, token] of Object.entries(tokensMap)) {
-
       // deploy erc20 token instance
       token.contract = await deployContract(
         erc20Owner,
@@ -450,6 +451,89 @@ describe("SemiDex", () => {
       // expect contract balanceB to be -output of tokenB
       expect(pairTokenBBalanceAfter).to.be.equal(
         pairTokenBBalanceBefore.sub(expectedOutputTokenB)
+      );
+    });
+
+    it("Can trade tokenB of a pair and receive expected tokenA of same pair (reverse operation)", async () => {
+      // ensure a pair exists
+      const existingPairId = 0;
+      await semiDex.addPair(
+        testPair.tokenA.address,
+        testPair.tokenB.address,
+        testPair.rateAtoB,
+        testPair.poolTokenA,
+        testPair.poolTokenB
+      );
+
+      const { tokenA, poolTokenA, rateAtoB } = await semiDexAsUser.pairs(
+        existingPairId
+      );
+
+      // initialize pair balance
+      const initialBalanceTokenA = bigNumberify(5000);
+
+      // transfer balance from adminWallet to the pool of the pair's tokenB (output)
+      await transferAndVerify(
+        tokenA,
+        poolTokenA,
+        initialBalanceTokenA,
+        adminWallet
+      );
+
+      const {
+        balanceA: pairTokenABalanceBefore,
+        balanceB: pairTokenBBalanceBefore
+      } = await semiDexAsUser.getPairDetails(existingPairId);
+
+      // trade input
+      const inputTokenB = bigNumberify(50); // ie. 1 ETH at 100 ETH/USDC -> expect 1/100 USDC output
+      const expectedOutputTokenA = inputTokenB.div(rateAtoB);
+
+      // assert user balance
+      const userTokenABalanceBefore = await testPair.tokenA.balanceOf(
+        userWallet.address
+      );
+      const userTokenBBalanceBefore = await testPair.tokenB.balanceOf(
+        userWallet.address
+      );
+      expect(userTokenABalanceBefore).to.be.gte(inputTokenB);
+
+      // run trade:
+      // client approves inputTokenB to semiDex
+      await testPair.tokenB
+        .connect(userWallet)
+        .approve(semiDex.address, inputTokenB);
+      // client executes trade() and expects expectedOutputTokenA received
+      await semiDexAsUser.trade(
+        existingPairId,
+        testPair.tokenB.address,
+        inputTokenB
+      );
+
+      // expect user balance to be -input of tokenB
+      expect(await testPair.tokenB.balanceOf(userWallet.address)).to.be.equal(
+        userTokenBBalanceBefore.sub(inputTokenB)
+      );
+
+      // expect user balance to be +output of tokenA
+      expect(await testPair.tokenA.balanceOf(userWallet.address)).to.be.equal(
+        userTokenABalanceBefore.add(expectedOutputTokenA)
+      );
+
+      // expect contract pair balances to be updated correctly
+      const {
+        balanceA: pairTokenABalanceAfter,
+        balanceB: pairTokenBBalanceAfter
+      } = await semiDexAsUser.getPairDetails(existingPairId);
+
+      // expect contract balanceB to be +input of tokenB
+      expect(pairTokenBBalanceAfter).to.be.equal(
+        pairTokenBBalanceBefore.add(inputTokenB)
+      );
+
+      // expect contract balanceA to be -output of tokenA
+      expect(pairTokenABalanceAfter).to.be.equal(
+        pairTokenABalanceBefore.sub(expectedOutputTokenA)
       );
     });
 

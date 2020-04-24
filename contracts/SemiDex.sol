@@ -37,67 +37,98 @@ contract SemiDex is Ownable {
   }
 
   function trade(uint pairId, address fromToken, uint256 inputCurrency) external {
-    // verify pair exists
+    // verify pair exists, and not removed
     require(pairId < pairsCount, "Pair id not exists in array");
     require(!isPairRemoved(pairId), "Pair has been removed");
 
-    Pair storage pair = pairs[pairId];
-
-    address tokenA;
-    address tokenB;
-    uint rateAtoB;
-
-    bool isReverse;
+    Pair memory pair = pairs[pairId];
 
     // determine tokens trade direction
+    bool isReverse;
+
     if (fromToken == pair.tokenA) {
-      // trade is A->B: out = in . rateAtoB
-      tokenA = fromToken;
-      tokenB = pair.tokenB;
-      rateAtoB = pair.rateAtoB;
       isReverse = false;
     } else if (fromToken == pair.tokenB) {
-      // trade is B->A: out = in . (1 / rateAtoB)
-      tokenA = pair.tokenB;
-      tokenB = fromToken;
-      rateAtoB = 1 / pair.rateAtoB;
       isReverse = true;
     } else {
       console.log("Error: specified token %s doesn't belong to pair id %d", fromToken, pairId);
-      revert("Specified token %s doesn't belong to pair");
+      revert("Specified token doesn't belong to pair");
     }
 
-    // calculate output currency to send to client based on input & rate
-    uint256 outputCurrency = inputCurrency.mul(rateAtoB);
+    // execute trade among tokens of the pair (based on normal/reversed direction)
+    _trade(pairId, inputCurrency, isReverse);
+  }
 
-    // retrieve tokens detailed info
-    ERC20Detailed A = ERC20Detailed(tokenA);
-    ERC20Detailed B = ERC20Detailed(tokenB);
+  function _trade(uint pairId, uint256 inputCurrency, bool isReversed) private {
+    Pair memory pair = pairs[pairId];
 
-    console.log("Trade in: %d %s, at rateAtoB: %d", inputCurrency, A.symbol(), rateAtoB);
-    console.log("=> Trade out: %d %s", outputCurrency, B.symbol());
+    // address of token contract RECEIVED from the client
+    address inputToken;
+    // address of token contract SENT to the client
+    address outputToken;
 
-    uint256 initialBalanceA = A.balanceOf(pair.poolTokenA);
-    uint256 initialBalanceB = B.balanceOf(pair.poolTokenB);
-    console.log("pool initialBalanceA %d, pool initialBalanceB %d", initialBalanceA, initialBalanceB);
+    // contract reference of token that is RECEIVED from the client
+    ERC20Detailed InputToken;
+    // contract reference of token that is SENT to the client
+    ERC20Detailed OutputToken;
+
+    // contract pool, to deposit the input from the client
+    address poolTokenTo;
+    // contract pool, to extract the output for the client
+    address poolTokenFrom;
+
+    // currency amount to send to the client
+    uint256 outputCurrency;
+
+    if (!isReversed) {
+      // regular trade: use tokenA as input, and tokenB as output
+      inputToken = pair.tokenA;
+      outputToken = pair.tokenB;
+
+      poolTokenTo = pair.poolTokenA;
+      poolTokenFrom = pair.poolTokenB;
+    } else {
+      // reversed trade: flip tokenA -> tokenB, and poolTokenA -> poolTokenB
+      inputToken = pair.tokenB;
+      outputToken = pair.tokenA;
+
+      poolTokenTo = pair.poolTokenB;
+      poolTokenFrom = pair.poolTokenA;
+    }
+
+    InputToken = ERC20Detailed(inputToken);
+    OutputToken = ERC20Detailed(outputToken);
+
+    // calculate outputCurrency amount (input * rate if normal, or input / rate if reversed)
+    if (!isReversed) {
+      outputCurrency = inputCurrency.mul(pair.rateAtoB);
+
+      console.log("Trade in: %d %s (tokenA), at rateAtoB: %d", inputCurrency, InputToken.symbol(), pair.rateAtoB);
+      console.log("=> Trade out: %d %s (tokenB)", outputCurrency, OutputToken.symbol());
+    } else {
+      outputCurrency = inputCurrency.div(pair.rateAtoB);
+
+      console.log("Trade in: %d %s (tokenB), at rateAtoB (inverse): 1/%d", inputCurrency, InputToken.symbol(), pair.rateAtoB);
+      console.log("=> Trade out: %d %s (tokenA)", outputCurrency, OutputToken.symbol());
+    }
+
+    uint256 initialBalancePoolTo = InputToken.balanceOf(poolTokenTo);
+    uint256 initialBalancePoolFrom = OutputToken.balanceOf(poolTokenFrom);
+    console.log("initialBalancePoolFrom %d, initialBalancePoolTo %d (reversed: %s)", initialBalancePoolFrom, initialBalancePoolTo, isReversed);
 
     // update pair balances
-    if (!isReverse) {
-      // client in: tokenA -> pool => pool out: tokenB -> client
-      require(initialBalanceB >= outputCurrency, "Not enough balance in pool of output tokenB");
-      require(A.allowance(msg.sender, address(this)) >= inputCurrency, "Not enough allowance of client input tokenA");
-      require(B.allowance(pair.poolTokenB, address(this)) >= outputCurrency, "Not enough allowance of contract output tokenB");
+    require(initialBalancePoolFrom >= outputCurrency, "Not enough balance for output in contract pool from");
+    require(InputToken.allowance(msg.sender, address(this)) >= inputCurrency, "Not enough allowance of client input tokenA (trade input))");
+    require(OutputToken.allowance(poolTokenFrom, address(this)) >= outputCurrency, "Not enough allowance of contract output tokenB (trade output)");
 
-      A.transferFrom(msg.sender, pair.poolTokenA, inputCurrency);
-      B.transferFrom(pair.poolTokenB, msg.sender, outputCurrency);
-    } else {
-      // client in: tokenB -> pool, pool out: tokenA -> client
-      // TODO implement
-      revert("reverse trade not yet implemented");
-    }
+    // transfer input currency from sender (client) to the pair token pool (contract)
+    InputToken.transferFrom(msg.sender, poolTokenTo, inputCurrency);
 
-    console.log("Pair pool '%s' balanceA %d -> %d", A.symbol(), initialBalanceA, A.balanceOf(pair.poolTokenA));
-    console.log("Pair pool '%s' balanceB %d -> %d", B.symbol(), initialBalanceB, B.balanceOf(pair.poolTokenB));
+    // transfer output currency from the pair token pool (contract) to the sender (client)
+    OutputToken.transferFrom(poolTokenFrom, msg.sender, outputCurrency);
+
+    console.log("Pair pool '%s' balance: %d -> %d (increased)", InputToken.symbol(), initialBalancePoolTo, InputToken.balanceOf(poolTokenTo));
+    console.log("Pair pool '%s' balance: %d -> %d (decreased)", OutputToken.symbol(), initialBalancePoolFrom, OutputToken.balanceOf(poolTokenFrom));
   }
 
   function getPairDetails(uint pairId) view external returns (
@@ -144,7 +175,7 @@ contract SemiDex is Ownable {
     pair.rateAtoB = 0;
   }
 
-  function isPairRemoved(uint pairId) view external returns (bool) {
+  function isPairRemoved(uint pairId) view public returns (bool) {
     require(pairId < pairsCount, "Pair id not exists in array");
     Pair memory pair = pairs[pairId];
 
